@@ -110,10 +110,14 @@
         html: `<div class="plane-icon" style="transform: rotate(${heading || 0}deg)">✈</div>`,
         iconSize: [18,18], iconAnchor: [9,9]
       });
-      planeLayer = L.marker([lat, lon], { icon }).bindPopup(
-        `<b>${callsign}</b><br>${lat.toFixed(4)}, ${lon.toFixed(4)}`
-      ).addTo(map);
-      if (!map.hasLayer(planeLayer)) planeLayer.addTo(map);
+      if (!planeLayer) {
+      // Premier affichage
+        planeLayer = L.marker([lat, lon], { icon }).addTo(map);
+      } else {
+      // MàJ position + icône (cap) du même marqueur
+        planeLayer.setLatLng([lat, lon]).setIcon(icon);
+      }
+      
     }
 
     async function loadPlane() {
