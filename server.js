@@ -7,25 +7,23 @@ const url = require('url');
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
 
-const icaoHex = '39BE89'; // ★ change ici si besoin
+const icaoHex = '39BE89'; // ★ à adapter si besoin
 
 function fetchAircraft() {
   return new Promise((resolve, reject) => {
-    const req = https.get(
-      `https://opendata.adsb.fi/api/v2/hex/${icaoHex}`,
-      res => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            const json = JSON.parse(data);
-            resolve(json);
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }
-    );
+    const url = `https://opendata.adsb.fi/api/v2/hex/${icaoHex}`;
+    const req = https.get(url, res => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const obj = JSON.parse(data);
+          resolve(obj);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
     req.on('error', reject);
   });
 }
@@ -39,27 +37,28 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
 
     try {
-      const aircraft = await fetchAircraft();
+      const jsonObj = await fetchAircraft();
+      const acArray = jsonObj.ac;
 
-      // Vérifie que lat/lon sont bien des nombres non nuls
-      if (
-        aircraft.lat == null ||
-        aircraft.lon == null ||
-        typeof aircraft.lat !== 'number' ||
-        typeof aircraft.lon !== 'number'
-      ) {
+      if (!Array.isArray(acArray) || acArray.length === 0) {
+        res.statusCode = 404;
+        return res.end(JSON.stringify({ error: 'Aucun avion trouvé' }));
+      }
+
+      const ac = acArray[0];
+
+      if (ac.lat == null || ac.lon == null || typeof ac.lat !== 'number' || typeof ac.lon !== 'number') {
         res.statusCode = 404;
         return res.end(JSON.stringify({ error: 'Pas de position valide' }));
       }
-      console.log('Avion reçu:', { lat: aircraft.lat, lon: aircraft.lon });
+
       const point = {
-        lat: aircraft.lat,
-        lon: aircraft.lon,
-        heading: aircraft.track || 0,
-        callsign: aircraft.call || 'AVION_X'
+        lat: ac.lat,
+        lon: ac.lon,
+        heading: ac.track || 0,
+        callsign: ac.flight?.trim() || ac.r || 'AVION_X'
       };
-      res.end(JSON.stringify(point));
-      
+
       res.statusCode = 200;
       return res.end(JSON.stringify(point));
     } catch (e) {
