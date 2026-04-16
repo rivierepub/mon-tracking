@@ -106,7 +106,7 @@
     function addPlane(lat, lon, heading, callsign) {
       const icon = L.divIcon({
         className: '',
-        html: `<div class="plane-icon" style="transform: rotate(${heading || 0}deg)">✈</div>`,
+        html: `<div class="plane-icon" style="transform: rotate(${heading+90 || 0}deg)">✈</div>`,
         iconSize: [18,18], iconAnchor: [9,9]
       });
       if (!planeLayer) {
