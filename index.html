@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>航空 Tracking</title>
+  <title>My Tracking</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body { margin:0; height:100%; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
@@ -118,7 +118,7 @@
     function addPlane(lat, lon, heading, callsign, hex) {
       const icon = L.divIcon({
         className: '',
-        html: `<div class="plane-icon" style="transform: rotate(${heading || 0}deg)">✈</div>`,
+        html: `<div class="plane-icon" style="transform: rotate(${heading-90 || 0}deg)">✈</div>`,
         iconSize: [18, 18],
         iconAnchor: [9, 9]
       });
