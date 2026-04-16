@@ -7,7 +7,7 @@ const url = require('url');
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
 
-const icaoHex = '39BE89'; // ★ remplace par l’ICAO24 de ton avion
+const icaoHex = '39CF0C'; // ★ remplace par l’ICAO24 de ton avion
 
 function fetchAircraft() {
   return new Promise((resolve, reject) => {
