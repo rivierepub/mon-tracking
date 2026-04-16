@@ -7,7 +7,7 @@ const url = require('url');
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
 
-const icaoHex = '39BE89'; // ★ à adapter si besoin
+const icaoHex = '3949F7'; // ★ à adapter si besoin
 
 function fetchAircraft() {
   return new Promise((resolve, reject) => {
