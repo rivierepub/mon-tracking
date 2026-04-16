@@ -29,9 +29,8 @@
 
   <div class="topbar">
     <input id="kmlFile" type="file" accept=".kml,.kmz" />
-    <input id="avionReg" type="text" placeholder="Immatriculation (ex: F-HPUJ)" />
+    <input id="avionHex" type="text" placeholder="Code ICAO24 (ex: 801600)" />
     <button id="loadPlaneBtn" class="pill">Charger avion</button>
-    <span id="toggleLiveStatus" class="pill">Avion live: ON</span>
     <span class="status" id="status">Prêt</span>
   </div>
 
@@ -48,7 +47,7 @@
     let kmlLayer = null;
     let planeLayer = null;
     let planesOn = true;
-    let currentReg = 'F-HPUJ'; // valeur par défaut
+    let currentHex = '39BE89'; // valeur par défaut
     const statusEl = document.getElementById('status');
 
     function setStatus(msg) { statusEl.textContent = msg; }
@@ -106,20 +105,20 @@
     });
 
     document.getElementById('loadPlaneBtn').addEventListener('click', () => {
-      const reg = document.getElementById('avionReg').value.trim();
-      if (!reg) {
-        setStatus('Immatriculation vide');
+      const hex = document.getElementById('avionHex').value.trim();
+      if (!hex) {
+        setStatus('Code ICAO24 vide');
         return;
       }
-      currentReg = reg;
-      setStatus('Avion selectionné: ' + reg);
+      currentHex = hex;
+      setStatus('Avion sélectionné: ' + hex);
       loadPlane();
     });
 
-    function addPlane(lat, lon, heading, callsign, reg) {
+    function addPlane(lat, lon, heading, callsign, hex) {
       const icon = L.divIcon({
         className: '',
-        html: `<div class="plane-icon" style="transform: rotate(${heading-90 || 0}deg)">✈</div>`,
+        html: `<div class="plane-icon" style="transform: rotate(${heading || 0}deg)">✈</div>`,
         iconSize: [18, 18],
         iconAnchor: [9, 9]
       });
@@ -131,7 +130,7 @@
       }
 
       planeLayer.bindPopup(
-        `<b>${callsign || 'Avion'}</b> (${reg})<br>${lat.toFixed(4)}, ${lon.toFixed(4)}`
+        `<b>${callsign || 'Avion'}</b> (ICAO24: ${hex})<br>${lat.toFixed(4)}, ${lon.toFixed(4)}`
       );
     }
 
@@ -139,7 +138,7 @@
       if (!planesOn) return;
       setStatus('Avion en direct...');
       try {
-        const url = `https://mon-tracking.onrender.com/avion?reg=${encodeURIComponent(currentReg)}`;
+        const url = `https://mon-tracking.onrender.com/avion?hex=${encodeURIComponent(currentHex)}`;
         const res = await fetch(url, { cache: 'no-store' });
         const data = await res.json();
 
@@ -148,8 +147,8 @@
           return;
         }
 
-        addPlane(data.lat, data.lon, data.heading, data.callsign, data.reg);
-        setStatus(`Avion (${data.reg}) chargé`);
+        addPlane(data.lat, data.lon, data.heading, data.callsign, data.hex);
+        setStatus(`Avion (${data.hex}) chargé`);
       } catch (e) {
         console.error('loadPlane:', e);
         setStatus('Avion indisponible');
@@ -163,7 +162,7 @@
     }, 5000);
 
     // Au démarrage, affiche un message d’aide
-    setStatus('Entrez l’immatriculation puis cliquez sur "Charger avion"');
+    setStatus('Entrez le code ICAO24 puis cliquez sur "Charger avion"');
   </script>
 </body>
 </html>
