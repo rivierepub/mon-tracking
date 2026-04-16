@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Un seul avion en direct + KML</title>
+  <title>航空 Tracking</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body { margin:0; height:100%; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
@@ -113,6 +113,7 @@
       planeLayer = L.marker([lat, lon], { icon }).bindPopup(
         `<b>${callsign}</b><br>${lat.toFixed(4)}, ${lon.toFixed(4)}`
       ).addTo(map);
+      if (!map.hasLayer(planeLayer)) planeLayer.addTo(map);
     }
 
     async function loadPlane() {
@@ -131,4 +132,25 @@
           return;
         }
 
-        
+        addPlane(data.lat, data.lon, data.heading, data.callsign);
+        setStatus('Avion chargé');
+      } catch (e) {
+        console.error('loadPlane:', e);
+        setStatus('Avion indisponible');
+      }
+    }
+
+    document.getElementById('toggleLive').addEventListener('click', () => {
+      planesOn = !planesOn;
+      document.getElementById('toggleLive').textContent = `Avion live: ${planesOn ? 'ON' : 'OFF'}`;
+      if (planesOn) loadPlane();
+      else clearPlane();
+    });
+
+    loadPlane();
+    setInterval(() => {
+      if (document.getElementById('autoRefresh').checked) loadPlane();
+    }, 10000);
+  </script>
+</body>
+</html>
