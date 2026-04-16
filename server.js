@@ -14,17 +14,37 @@ function fetchAircraft() {
     const url = `https://opendata.adsb.fi/api/v2/hex/${icaoHex}`;
     const req = https.get(url, res => {
       let data = '';
+
+      // Ajouter statusCode pour comprendre les erreurs
+      if (res.statusCode !== 200) {
+        const err = new Error(`adsb.fi: ${res.statusCode}`);
+        res.resume(); // drain response
+        return reject(err);
+      }
+
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
           const obj = JSON.parse(data);
           resolve(obj);
         } catch (e) {
+          console.error('JSON parse error:', data.slice(0, 200));
           reject(e);
         }
       });
     });
-    req.on('error', reject);
+
+    req.on('error', err => {
+      console.error('https.get error:', err.message || err);
+      reject(err);
+    });
+
+    req.setTimeout(8000, () => {
+      req.destroy();
+      const err = new Error('Request timeout');
+      console.error('Request timeout');
+      reject(err);
+    });
   });
 }
 
@@ -47,7 +67,12 @@ const server = http.createServer(async (req, res) => {
 
       const ac = acArray[0];
 
-      if (ac.lat == null || ac.lon == null || typeof ac.lat !== 'number' || typeof ac.lon !== 'number') {
+      if (
+        ac.lat == null ||
+        ac.lon == null ||
+        typeof ac.lat !== 'number' ||
+        typeof ac.lon !== 'number'
+      ) {
         res.statusCode = 404;
         return res.end(JSON.stringify({ error: 'Pas de position valide' }));
       }
@@ -64,7 +89,7 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.error('Erreur avion:', e.message || e);
       res.statusCode = 500;
-      res.end(JSON.stringify({ error: 'API avion indisponible' }));
+      res.end(JSON.stringify({ error: 'API avion indisponible', details: e.message }));
     }
 
     return;
@@ -76,6 +101,7 @@ const server = http.createServer(async (req, res) => {
       res.setHeader('Content-Type', 'text/html');
       res.end(file);
     } catch (err) {
+      console.error('Lecture index.html:', err.message);
       res.statusCode = 500;
       res.end('Erreur serveur');
     }
