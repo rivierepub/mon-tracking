@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Un seul avion en direct + KML</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    html, body { margin:0; height:100%; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #map { height:100%; width:100%; }
+    .topbar {
+      position: absolute; z-index:1000; top:10px; left:10px; right:10px;
+      background:rgba(255,255,255,.95); padding:8px 12px; border-radius:12px;
+      box-shadow:0 4px 20px rgba(0,0,0,.15); display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+    }
+    .topbar input[type="file"] { max-width:220px; }
+    .topbar button, .topbar label {
+      border:1px solid #ccc; background:#fff; padding:8px 10px; border-radius:10px; font-size:14px;
+    }
+    .status { margin-left:auto; font-size:13px; color:#333; }
+    .plane-icon {
+      width:18px; height:18px; display:flex; align-items:center; justify-content:center;
+      font-size:18px; transform-origin:center center; text-shadow:0 0 2px white;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="topbar">
+    <input id="kmlFile" type="file" accept=".kml,.kmz" />
+    <button id="toggleLive" class="pill">Avion live: ON</button>
+    <label><input type="checkbox" id="autoRefresh" checked /> rafraîchir</label>
+    <span class="status" id="status">Prêt</span>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+  <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <script>
+    const map = L.map('map').setView([43.6047, 1.4442], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    let kmlLayer = null;
+    let planeLayer = null;
+    let planesOn = true;
+    const statusEl = document.getElementById('status');
+
+    function setStatus(msg) { statusEl.textContent = msg; }
+
+    function clearKml() { if (kmlLayer) map.removeLayer(kmlLayer); kmlLayer = null; }
+    function clearPlane() { if (planeLayer) map.removeLayer(planeLayer); planeLayer = null; }
+
+    function addGeoJsonLayer(geojson) {
+      clearKml();
+      kmlLayer = L.geoJSON(geojson, {
+        style: () => ({ color: '#e11d48', weight: 3, fillColor: '#fb7185', fillOpacity: 0.2 }),
+        pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+          radius: 6, color: '#0f172a', weight: 2, fillColor: '#f59e0b', fillOpacity: 1
+        }),
+        onEachFeature: (f, l) => {
+          const p = f.properties || {};
+          const txt = p.name || p.description || p.title || 'KML';
+          l.bindPopup(txt.replace(/<[^>]+>/g, ''));
+        }
+      }).addTo(map);
+      try { map.fitBounds(kmlLayer.getBounds(), { padding: [20,20] }); } catch (e) {}
+      setStatus('KML chargé');
+    }
+
+    function parseKmlFile(file) {
+      setStatus('Lecture KML...');
+      return file.text().then(text => {
+        const xml = new DOMParser().parseFromString(text, 'application/xml');
+        const geojson = toGeoJSON.kml(xml);
+        addGeoJsonLayer(geojson);
+      });
+    }
+
+    function parseKmzFile(file) {
+      setStatus('Lecture KMZ...');
+      return file.arrayBuffer().then(buf => JSZip.loadAsync(buf))
+        .then(zip => {
+          const kmls = Object.keys(zip.files).filter(n => n.toLowerCase().endsWith('.kml'));
+          if (!kmls.length) throw new Error('Aucun .kml dans le KMZ');
+          return zip.files[kmls[0]].async('string');
+        })
+        .then(text => {
+          const xml = new DOMParser().parseFromString(text, 'application/xml');
+          const geojson = toGeoJSON.kml(xml);
+          addGeoJsonLayer(geojson);
+        });
+    }
+
+    document.getElementById('kmlFile').addEventListener('change', e => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const fn = file.name.toLowerCase();
+      const promise = fn.endsWith('.kmz') ? parseKmzFile(file) : parseKmlFile(file);
+      promise.catch(err => { setStatus('KML/KMZ err'); alert(err); });
+    });
+
+    function addPlane(lat, lon, heading, callsign) {
+      clearPlane();
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="plane-icon" style="transform: rotate(${heading || 0}deg)">✈</div>`,
+        iconSize: [18,18], iconAnchor: [9,9]
+      });
+      planeLayer = L.marker([lat, lon], { icon }).bindPopup(
+        `<b>${callsign}</b><br>${lat.toFixed(4)}, ${lon.toFixed(4)}`
+      ).addTo(map);
+    }
+
+    async function loadPlane() {
+      if (!planesOn) return;
+      setStatus('Avion en direct...');
+      try {
+        const res = await fetch('https://mon-tracking.onrender.com/avion', { cache: 'no-store' }); // ★ à changer
+        const data = await res.json();
+        if (data.error) {
+          setStatus('Avion err');
+          return;
+        }
+        addPlane(data.lat, data.lon, data.heading, data.callsign);
+        setStatus('Avion chargé');
+      } catch (e) {
+        setStatus('Avion indisponible');
+      }
+    }
+
+    document.getElementById('toggleLive').addEventListener('click', () => {
+      planesOn = !planesOn;
+      document.getElementById('toggleLive').textContent = `Avion live: ${planesOn ? 'ON' : 'OFF'}`;
+      if (planesOn) loadPlane();
+      else clearPlane();
+    });
+
+    loadPlane();
+    setInterval(() => {
+      if (document.getElementById('autoRefresh').checked) loadPlane();
+    }, 10000);
+  </script>
+</body>
+</html>
