@@ -7,49 +7,7 @@ const url = require('url');
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
 
-// 1. Récupère l'ICAO24 (hex) à partir de l'immatriculation via hexdb.io
-function fetchHexFromReg(reg) {
-  return new Promise((resolve, reject) => {
-    const cleanReg = reg.trim().toUpperCase();
-    const hexdbUrl = `https://hexdb.io/api/v1/aircraft/${cleanReg}`;
-
-    const req = https.get(hexdbUrl, res => {
-      let data = '';
-
-      if (res.statusCode !== 200) {
-        res.resume();
-        return reject(new Error(`hexdb.io: ${res.statusCode}`));
-      }
-
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const obj = JSON.parse(data);
-          if (obj && obj.ModeS) {
-            resolve(obj.ModeS.toLowerCase()); // icoa24 (hex)
-          } else {
-            reject(new Error('aircraft not found'));
-          }
-        } catch (e) {
-          console.error('hexdb.io JSON parse error:', data.slice(0, 200));
-          reject(e);
-        }
-      });
-    });
-
-    req.on('error', err => {
-      console.error('hexdb.io error:', err.message || err);
-      reject(err);
-    });
-
-    req.setTimeout(8000, () => {
-      req.destroy();
-      reject(new Error('hexdb.io request timeout'));
-    });
-  });
-}
-
-// 2. Récupère la position en temps réel via adsb.fi
+// 1. Récupère la position en temps réel via adsb.fi
 function fetchAircraftFromHex(hex) {
   return new Promise((resolve, reject) => {
     const adsbUrl = `https://opendata.adsb.fi/api/v2/hex/${hex}`;
@@ -92,26 +50,25 @@ function fetchAircraftFromHex(hex) {
   });
 }
 
-// 3. Serveur HTTP principal
+// 2. Serveur HTTP principal
 const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const path = parsed.pathname;
 
-  // 3.1 Endpoint /avion?reg=F-HPUJ → suivi par immatriculation
+  // 2.1 Endpoint /avion?hex=801600 → suivi par hex ICAO24
   if (path === '/avion') {
-    const reg = parsed.query.reg;
+    const hex = parsed.query.hex;
 
-    if (!reg) {
+    if (!hex) {
       res.statusCode = 400;
-      return res.end('Missing reg');
+      return res.end('Missing hex');
     }
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
 
     try {
-      const icaoHex = await fetchHexFromReg(reg);
-      const ac = await fetchAircraftFromHex(icaoHex);
+      const ac = await fetchAircraftFromHex(hex);
 
       if (
         ac.lat == null ||
@@ -128,7 +85,7 @@ const server = http.createServer(async (req, res) => {
         lon: ac.lon,
         heading: ac.track || 0,
         callsign: ac.flight?.trim() || ac.r || 'AVION_X',
-        reg: ac.r || reg
+        hex: ac.hex || hex
       };
 
       res.statusCode = 200;
@@ -141,7 +98,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 3.2 Sert la page web (index.html)
+  // 2.2 Sert la page web (index.html)
   if (path === '/' || path === '/index.html') {
     try {
       const file = fs.readFileSync('index.html');
@@ -155,7 +112,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 3.3 404 pour tout le reste
+  // 2.3 404 pour tout le reste
   res.statusCode = 404;
   res.end('Not found');
 });
