@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Mon Tracking</title>
+  <title>航空 Tracking</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body { margin:0; height:100%; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
@@ -14,7 +14,7 @@
       box-shadow:0 4px 20px rgba(0,0,0,.15); display:flex; flex-wrap:wrap; gap:8px; align-items:center;
     }
     .topbar input[type="file"] { max-width:220px; }
-    .topbar button, .topbar label {
+    .topbar button, .topbar label, .topbar input[type="text"] {
       border:1px solid #ccc; background:#fff; padding:8px 10px; border-radius:10px; font-size:14px;
     }
     .status { margin-left:auto; font-size:13px; color:#333; }
@@ -29,8 +29,9 @@
 
   <div class="topbar">
     <input id="kmlFile" type="file" accept=".kml,.kmz" />
-    <button id="toggleLive" class="pill">Avion live: ON</button>
-    <label><input type="checkbox" id="autoRefresh" checked /> rafraîchir</label>
+    <input id="avionReg" type="text" placeholder="Immatriculation (ex: F-HPUJ)" />
+    <button id="loadPlaneBtn" class="pill">Charger avion</button>
+    <span id="toggleLiveStatus" class="pill">Avion live: ON</span>
     <span class="status" id="status">Prêt</span>
   </div>
 
@@ -47,6 +48,7 @@
     let kmlLayer = null;
     let planeLayer = null;
     let planesOn = true;
+    let currentReg = 'F-HPUJ'; // valeur par défaut
     const statusEl = document.getElementById('status');
 
     function setStatus(msg) { statusEl.textContent = msg; }
@@ -103,57 +105,65 @@
       promise.catch(err => { setStatus('KML/KMZ err'); alert(err); });
     });
 
-    function addPlane(lat, lon, heading, callsign) {
+    document.getElementById('loadPlaneBtn').addEventListener('click', () => {
+      const reg = document.getElementById('avionReg').value.trim();
+      if (!reg) {
+        setStatus('Immatriculation vide');
+        return;
+      }
+      currentReg = reg;
+      setStatus('Avion selectionné: ' + reg);
+      loadPlane();
+    });
+
+    function addPlane(lat, lon, heading, callsign, reg) {
       const icon = L.divIcon({
         className: '',
-        html: `<div class="plane-icon" style="transform: rotate(${heading-90 || 0}deg)">✈</div>`,
-        iconSize: [18,18], iconAnchor: [9,9]
+        html: `<div class="plane-icon" style="transform: rotate(${heading || 0}deg)">✈</div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
       });
+
       if (!planeLayer) {
-      // Premier affichage
         planeLayer = L.marker([lat, lon], { icon }).addTo(map);
       } else {
-      // MàJ position + icône (cap) du même marqueur
         planeLayer.setLatLng([lat, lon]).setIcon(icon);
       }
-      
+
+      planeLayer.bindPopup(
+        `<b>${callsign || 'Avion'}</b> (${reg})<br>${lat.toFixed(4)}, ${lon.toFixed(4)}`
+      );
     }
 
     async function loadPlane() {
       if (!planesOn) return;
       setStatus('Avion en direct...');
       try {
-        const res = await fetch('https://mon-tracking.onrender.com/avion', { cache: 'no-store' });
+        const url = `https://mon-tracking.onrender.com/avion?reg=${encodeURIComponent(currentReg)}`;
+        const res = await fetch(url, { cache: 'no-store' });
         const data = await res.json();
 
-        if (data.error) {
+        if (data.error || data.lat == null || data.lon == null) {
           setStatus('Avion hors ligne');
           return;
         }
-        if (data.lat == null || data.lon == null) {
-          setStatus('Avion sans position');
-          return;
-        }
 
-        addPlane(data.lat, data.lon, data.heading, data.callsign);
-        setStatus('Avion chargé');
+        addPlane(data.lat, data.lon, data.heading, data.callsign, data.reg);
+        setStatus(`Avion (${data.reg}) chargé`);
       } catch (e) {
         console.error('loadPlane:', e);
         setStatus('Avion indisponible');
       }
     }
 
-    document.getElementById('toggleLive').addEventListener('click', () => {
-      planesOn = !planesOn;
-      document.getElementById('toggleLive').textContent = `Avion live: ${planesOn ? 'ON' : 'OFF'}`;
-      if (planesOn) loadPlane();
-      else clearPlane();
-    });
-
-    loadPlane();
+    // Rafraîchissement toutes les 5 secondes, toujours ON
+    planesOn = true;
     setInterval(() => {
-      if (document.getElementById('autoRefresh').checked) loadPlane();
-    }, 10000);
+      if (planesOn) loadPlane();
+    }, 5000);
+
+    // Au démarrage, affiche un message d’aide
+    setStatus('Entrez l’immatriculation puis cliquez sur "Charger avion"');
   </script>
 </body>
 </html>
