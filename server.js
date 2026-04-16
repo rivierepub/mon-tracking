@@ -7,7 +7,7 @@ const url = require('url');
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
 
-const icaoHex = '39CF0C'; // ★ remplace par l’ICAO24 de ton avion
+const icaoHex = '39BE89'; // ★ change ici si besoin
 
 function fetchAircraft() {
   return new Promise((resolve, reject) => {
@@ -34,31 +34,51 @@ const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const path = parsed.pathname;
 
-  // Endpoint /avion -> avion en direct (JSON)
   if (path === '/avion') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json');
+
     try {
       const aircraft = await fetchAircraft();
+
+      // Vérifie que lat/lon sont bien des nombres non nuls
+      if (
+        aircraft.lat == null ||
+        aircraft.lon == null ||
+        typeof aircraft.lat !== 'number' ||
+        typeof aircraft.lon !== 'number'
+      ) {
+        res.statusCode = 404;
+        return res.end(JSON.stringify({ error: 'Pas de position valide' }));
+      }
+
       const point = {
-        lat: aircraft.lat || 0,
-        lon: aircraft.lon || 0,
+        lat: aircraft.lat,
+        lon: aircraft.lon,
         heading: aircraft.track || 0,
         callsign: aircraft.call || 'AVION_X'
       };
-      res.end(JSON.stringify(point));
+
+      res.statusCode = 200;
+      return res.end(JSON.stringify(point));
     } catch (e) {
+      console.error('Erreur avion:', e.message || e);
       res.statusCode = 500;
       res.end(JSON.stringify({ error: 'API avion indisponible' }));
     }
+
     return;
   }
 
-  // Sert le HTML si / ou /index.html
   if (path === '/' || path === '/index.html') {
-    const file = fs.readFileSync('index.html');
-    res.setHeader('Content-Type', 'text/html');
-    res.end(file);
+    try {
+      const file = fs.readFileSync('index.html');
+      res.setHeader('Content-Type', 'text/html');
+      res.end(file);
+    } catch (err) {
+      res.statusCode = 500;
+      res.end('Erreur serveur');
+    }
     return;
   }
 
