@@ -51,14 +51,15 @@ const server = http.createServer(async (req, res) => {
         res.statusCode = 404;
         return res.end(JSON.stringify({ error: 'Pas de position valide' }));
       }
-
+      console.log('Avion reçu:', { lat: aircraft.lat, lon: aircraft.lon });
       const point = {
         lat: aircraft.lat,
         lon: aircraft.lon,
         heading: aircraft.track || 0,
         callsign: aircraft.call || 'AVION_X'
       };
-
+      res.end(JSON.stringify(point));
+      
       res.statusCode = 200;
       return res.end(JSON.stringify(point));
     } catch (e) {
