@@ -119,30 +119,16 @@
       if (!planesOn) return;
       setStatus('Avion en direct...');
       try {
-        const res = await fetch('https://mon-tracking.onrender.com/avion', { cache: 'no-store' }); // ★ à changer
+        const res = await fetch('https://mon-tracking.onrender.com/avion', { cache: 'no-store' });
         const data = await res.json();
+
         if (data.error) {
-          setStatus('Avion err');
+          setStatus('Avion hors ligne');
           return;
         }
-        addPlane(data.lat, data.lon, data.heading, data.callsign);
-        setStatus('Avion chargé');
-      } catch (e) {
-        setStatus('Avion indisponible');
-      }
-    }
+        if (data.lat == null || data.lon == null) {
+          setStatus('Avion sans position');
+          return;
+        }
 
-    document.getElementById('toggleLive').addEventListener('click', () => {
-      planesOn = !planesOn;
-      document.getElementById('toggleLive').textContent = `Avion live: ${planesOn ? 'ON' : 'OFF'}`;
-      if (planesOn) loadPlane();
-      else clearPlane();
-    });
-
-    loadPlane();
-    setInterval(() => {
-      if (document.getElementById('autoRefresh').checked) loadPlane();
-    }, 10000);
-  </script>
-</body>
-</html>
+        
